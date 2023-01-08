@@ -117,7 +117,7 @@ def get_data(url, folder_name, part):
         page_number += 1
 
         # аварийный выход из цикла
-        if page_number == 10:
+        if page_number == 5000:
             break
 
     # запишем информацию в общий файл JSON
