@@ -1,10 +1,13 @@
+import random
+
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 import requests as r
 import csv
 import json
 import os
-from input_data import DATA
+import time
+from input_data import DATA, MAX_NUMBER_PAGE
 
 
 def get_author(text):
@@ -18,7 +21,6 @@ def get_author(text):
 def get_name(text):
     pos = text.find('—')
     name = text[pos + 1:].strip()
-    # print(name)
     return (name)
 
 
@@ -71,7 +73,7 @@ def get_data(url, folder_name, part):
     poems_on_part = {}
     page_number = 1
     while url != None:
-        print(f'...Обрабатывается страница: {page_number}')
+        print(f'...Обрабатывается раздел {part} страница: {page_number}')
 
         page_folder_name = f'{details_folder_name}/{folder_name}_page{page_number}'
         exist_mkdir(page_folder_name)
@@ -106,18 +108,19 @@ def get_data(url, folder_name, part):
         all_count = len(poems_on_page)
         for poem_href, poem_name in poems_on_page.items():
             row = get_poem_data(poem_href, poem_name, part, headers)
-            write_row_csv(f'{page_folder_name}/page{page_number}.csv', row)
-            row_list.append(row)
-            poem_count += 1
-            print(f'...Обработано стихотворений: {poem_count} из {all_count} = {100 * poem_count / all_count}%')
-
+            if row != None:
+                write_row_csv(f'{page_folder_name}/page{page_number}.csv', row)
+                row_list.append(row)
+                poem_count += 1
+                print(f'...Обработано стихотворений: {poem_count} из {all_count} = {100 * poem_count / all_count}%')
+            else:
+                print('Damn...')
         # ищем следующую страницу
         next_page = soup.find('a', class_='next page-numbers')
         url = None if next_page == None else next_page.get('href')
         page_number += 1
 
-        # аварийный выход из цикла
-        if page_number == 5000:
+        if MAX_NUMBER_PAGE != 0 and page_number == MAX_NUMBER_PAGE:
             break
 
     # запишем информацию в общий файл JSON
@@ -131,18 +134,26 @@ def get_data(url, folder_name, part):
 
 def get_poem_data(url, poem_name, part, headers):
     response = r.get(url, headers=headers)
+    if response.status_code != 200:
+        return None
     src = response.text
     soup = BeautifulSoup(src, 'lxml')
 
     author = get_author(poem_name)
     name = get_name(poem_name)
-    text = soup.find('div', class_='poem-text').find('p').text[:15] + '...'
+    poem_text = soup.find('div', class_='poem-text')
+    if poem_text != None:
+        text = poem_text.find('p').text[:15] + '...'
+    else:
+        text = f'error href: {url}'
 
     category_list = []
     all_category = soup.find('ul', class_='post-categories').find_all('a')
     for category in all_category:
         category_list.append(category.text)
     category = ','.join(category_list)
+
+    time.sleep(random.randrange(2, 4))
 
     return (
         part,
